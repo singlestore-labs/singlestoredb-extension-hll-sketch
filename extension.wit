@@ -1,0 +1,70 @@
+type state = s32
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// VALUE CALLBACKS
+//
+///////////////////////////////////////////////////////////////////////////////
+
+// Computes the HLL value of the sketch
+sketch-get-estimate: func(data: list<u8>) -> float64
+sketch-get-estimate-emptyisnull: func(data: list<u8>) -> float64
+
+// Computes the union of two HLL sketches.  Not for use in an aggregate.
+sketch-union: func(left: list<u8>, right: list<u8>) -> list<u8>
+sketch-union-emptyisnull: func(left: list<u8>, right: list<u8>) -> list<u8>
+
+// For use with sketch-handle-build-by-hash-agg.  Computes a hash value suitable
+// direct update in a HLL sketch aggregation.
+sketch-hash: func(data: list<u8>) -> u64
+sketch-hash-emptyisnull: func(data: list<u8>) -> u64
+
+// Returns string representation of the state.
+sketch-to-string: func(data: list<u8>) -> string
+sketch-to-string-emptyisnull: func(data: list<u8>) -> string
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// AGGREGATE CALLBACKS
+//
+///////////////////////////////////////////////////////////////////////////////
+
+// Initialization /////////////////////////////////////////////////////////////
+
+// Initializes a new aggregate sketch state
+sketch-handle-init: func() -> state
+
+// Accumulation ///////////////////////////////////////////////////////////////
+
+// Updates the state with the contents of a blob.  The blob is hashed
+// internally.
+sketch-handle-build-accum: func(state: state, input: list<u8>) -> state
+sketch-handle-build-accum-emptyisnull: func(state: state, input: list<u8>) -> state
+
+// Updates the state with a pre-hashed value.  The value is added directly
+// to the state.
+sketch-handle-build-accum-by-hash: func(state: state, input: u64) -> state
+sketch-handle-build-accum-by-hash-emptyisnull: func(state: state, input: u64) -> state
+
+// Updates the state by creating a union of it with another sketch.
+sketch-handle-union-accum: func(state: state, input: list<u8>) -> state
+sketch-handle-union-accum-emptyisnull: func(state: state, input: list<u8>) -> state
+
+// Merge //////////////////////////////////////////////////////////////////////
+
+// Merges two sketch states by UNION.
+sketch-handle-union-merge: func(left: state, right: state) -> state
+
+// Merges two sketch states by INTERSECTION.
+sketch-handle-intersection-merge: func(left: state, right: state) -> state
+
+// Serialization //////////////////////////////////////////////////////////////
+
+// Serializes a sketch state.
+sketch-handle-serialize: func(state: state) -> list<u8>
+
+// Deserialization ////////////////////////////////////////////////////////////
+
+// Deserializes a sketch state.
+sketch-handle-deserialize: func(data: list<u8>) -> state
+
