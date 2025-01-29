@@ -26,7 +26,6 @@
 #include "HllArray.hpp"
 #include "HllUtil.hpp"
 
-#include <stdexcept>
 #include <string>
 
 namespace datasketches {

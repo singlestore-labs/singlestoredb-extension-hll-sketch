@@ -24,7 +24,6 @@
 
 #include <cstring>
 #include <memory>
-#include <stdexcept>
 #include <string>
 
 namespace datasketches {

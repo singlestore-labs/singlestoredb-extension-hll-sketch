@@ -28,7 +28,6 @@
 #include "exception.hpp"
 
 #include <cmath>
-#include <stdexcept>
 #include <string>
 
 namespace datasketches {

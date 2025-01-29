@@ -23,7 +23,6 @@
 #include "CubicInterpolation.hpp"
 
 #include <string>
-#include <stdexcept>
 
 namespace datasketches {
 

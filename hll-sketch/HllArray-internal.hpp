@@ -29,7 +29,6 @@
 #include "inv_pow2_table.hpp"
 #include <cstring>
 #include <cmath>
-#include <stdexcept>
 #include <string>
 
 namespace datasketches {

@@ -20,8 +20,6 @@
 #ifndef _AUXHASHMAP_INTERNAL_HPP_
 #define _AUXHASHMAP_INTERNAL_HPP_
 
-#include <stdexcept>
-
 #include "HllUtil.hpp"
 #include "AuxHashMap.hpp"
 

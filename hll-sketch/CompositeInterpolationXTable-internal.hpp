@@ -23,9 +23,6 @@
 #include "HllUtil.hpp"
 #include "CompositeInterpolationXTable.hpp"
 
-#include <exception>
-#include <stdexcept>
-
 namespace datasketches {
 
 static const uint32_t numXArrValues = 257;

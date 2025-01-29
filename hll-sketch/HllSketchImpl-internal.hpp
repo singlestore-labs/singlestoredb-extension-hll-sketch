@@ -23,8 +23,6 @@
 #include "HllSketchImpl.hpp"
 #include "HllSketchImplFactory.hpp"
 
-#include <stdexcept>
-
 namespace datasketches {
 
 template<typename A>

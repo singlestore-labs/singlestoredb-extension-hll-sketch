@@ -27,7 +27,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
 
 namespace datasketches {
 
