@@ -43,20 +43,44 @@ kxq1_(0.0),
 hllByteArr_(allocator),
 curMin_(0),
 numAtCurMin_(1 << lgConfigK),
-oooFlag_(false)
+oooFlag_(false),
+rebuild_kxq_curmin_(false)
+{}
+
+template<typename A>
+HllArray<A>::HllArray(const HllArray& other, target_hll_type tgtHllType) :
+  HllSketchImpl<A>(other.getLgConfigK(), tgtHllType, hll_mode::HLL, other.isStartFullSize()),
+  // remaining fields are initialized to empty sketch defaults
+  // and left to subclass constructor to populate
+  hipAccum_(0.0),
+  kxq0_(1 << other.getLgConfigK()),
+  kxq1_(0.0),
+  hllByteArr_(other.getAllocator()),
+  curMin_(0),
+  numAtCurMin_(1 << other.getLgConfigK()),
+  oooFlag_(false),
+  rebuild_kxq_curmin_(false)
 {}
 
 template<typename A>
 HllArray<A>* HllArray<A>::copyAs(target_hll_type tgtHllType) const {
-  if (tgtHllType == this->getTgtHllType()) {
+  // we may need to recompute KxQ and curMin data for a union gadget,
+  // so only use a direct copy if we have a valid sketch
+  if (tgtHllType == this->getTgtHllType() && !this->isRebuildKxqCurminFlag()) {
     return static_cast<HllArray*>(copy());
   }
-  if (tgtHllType == target_hll_type::HLL_4) {
-    return HllSketchImplFactory<A>::convertToHll4(*this);
-  } else if (tgtHllType == target_hll_type::HLL_6) {
-    return HllSketchImplFactory<A>::convertToHll6(*this);
-  } else { // tgtHllType == HLL_8
-    return HllSketchImplFactory<A>::convertToHll8(*this);
+  
+  // the factory methods replay the coupons and will always rebuild
+  // the sketch in a consistent way
+  switch (tgtHllType) {
+    case target_hll_type::HLL_4:
+      return HllSketchImplFactory<A>::convertToHll4(*this);
+    case target_hll_type::HLL_6:
+      return HllSketchImplFactory<A>::convertToHll6(*this);
+    case target_hll_type::HLL_8:
+      return HllSketchImplFactory<A>::convertToHll8(*this);
+    default:
+      THROW_INVALID_ARG("Invalid target HLL type"); 
   }
 }
 
@@ -192,9 +216,9 @@ HllArray<A>* HllArray<A>::newHll(std::istream& is, const A& allocator) {
 }
 
 template<typename A>
-vector_u8<A> HllArray<A>::serialize(bool compact, unsigned header_size_bytes) const {
+auto HllArray<A>::serialize(bool compact, unsigned header_size_bytes) const -> vector_bytes {
   const size_t sketchSizeBytes = (compact ? getCompactSerializationBytes() : getUpdatableSerializationBytes()) + header_size_bytes;
-  vector_u8<A> byteArr(sketchSizeBytes, 0, getAllocator());
+  vector_bytes byteArr(sketchSizeBytes, 0, getAllocator());
   uint8_t* bytes = byteArr.data() + header_size_bytes;
   AuxHashMap<A>* auxHashMap = getAuxHashMap();
 
@@ -353,7 +377,7 @@ double HllArray<A>::getEstimate() const {
   if (oooFlag_) {
     return getCompositeEstimate();
   }
-  return getHipAccum();
+  return hipAccum_;
 }
 
 // HLL UPPER AND LOWER BOUNDS
@@ -376,54 +400,20 @@ double HllArray<A>::getLowerBound(uint8_t numStdDev) const {
   HllUtil<A>::checkNumStdDev(numStdDev);
   const uint32_t configK = 1 << this->lgConfigK_;
   const double numNonZeros = ((curMin_ == 0) ? (configK - numAtCurMin_) : configK);
-
-  double estimate;
-  double rseFactor;
-  if (oooFlag_) {
-    estimate = getCompositeEstimate();
-    rseFactor = hll_constants::HLL_NON_HIP_RSE_FACTOR;
-  } else {
-    estimate = hipAccum_;
-    rseFactor = hll_constants::HLL_HIP_RSE_FACTOR;
-  }
-
-  double relErr;
-  if (this->lgConfigK_ > 12) {
-    relErr = (numStdDev * rseFactor) / sqrt(configK);
-  } else {
-    relErr = HllUtil<A>::getRelErr(false, oooFlag_, this->lgConfigK_, numStdDev);
-  }
-  return fmax(estimate / (1.0 + relErr), numNonZeros);
+  const double relErr = HllUtil<A>::getRelErr(false, this->oooFlag_, this->lgConfigK_, numStdDev);
+  return fmax(getEstimate() / (1.0 + relErr), numNonZeros);
 }
 
 template<typename A>
 double HllArray<A>::getUpperBound(uint8_t numStdDev) const {
   HllUtil<A>::checkNumStdDev(numStdDev);
-  const uint32_t configK = 1 << this->lgConfigK_;
-
-  double estimate;
-  double rseFactor;
-  if (oooFlag_) {
-    estimate = getCompositeEstimate();
-    rseFactor = hll_constants::HLL_NON_HIP_RSE_FACTOR;
-  } else {
-    estimate = hipAccum_;
-    rseFactor = hll_constants::HLL_HIP_RSE_FACTOR;
-  }
-
-  double relErr;
-  if (this->lgConfigK_ > 12) {
-    relErr = (-1.0) * (numStdDev * rseFactor) / sqrt(configK);
-  } else {
-    relErr = HllUtil<A>::getRelErr(true, oooFlag_, this->lgConfigK_, numStdDev);
-  }
-  return estimate / (1.0 + relErr);
+  const double relErr = HllUtil<A>::getRelErr(true, this->oooFlag_, this->lgConfigK_, numStdDev);
+  return getEstimate() / (1.0 + relErr);
 }
 
 /**
  * This is the (non-HIP) estimator.
  * It is called "composite" because multiple estimators are pasted together.
- * @param absHllArr an instance of the AbstractHllArray class.
  * @return the composite estimate
  */
 // Original C: again-two-registers.c hhb_get_composite_estimate L1489
@@ -523,16 +513,6 @@ void HllArray<A>::putNumAtCurMin(uint32_t numAtCurMin) {
 }
 
 template<typename A>
-void HllArray<A>::decNumAtCurMin() {
-  --numAtCurMin_;
-}
-
-template<typename A>
-void HllArray<A>::addToHipAccum(double delta) {
-  hipAccum_ += delta;
-}
-
-template<typename A>
 bool HllArray<A>::isCompact() const {
   return false;
 }
@@ -540,7 +520,7 @@ bool HllArray<A>::isCompact() const {
 template<typename A>
 bool HllArray<A>::isEmpty() const {
   const uint32_t configK = 1 << this->lgConfigK_;
-  return (getCurMin() == 0) && (getNumAtCurMin() == configK);
+  return (curMin_ == 0) && (numAtCurMin_ == configK);
 }
 
 template<typename A>
@@ -611,6 +591,11 @@ AuxHashMap<A>* HllArray<A>::getAuxHashMap() const {
 }
 
 template<typename A>
+auto HllArray<A>::getHllArray() const -> const vector_bytes& {
+  return hllByteArr_;
+}
+
+template<typename A>
 void HllArray<A>::hipAndKxQIncrementalUpdate(uint8_t oldValue, uint8_t newValue) {
   const uint32_t configK = 1 << this->getLgConfigK();
   // update hip BEFORE updating kxq
@@ -656,6 +641,52 @@ double HllArray<A>::getHllRawEstimate() const {
 }
 
 template<typename A>
+void HllArray<A>::setRebuildKxqCurminFlag(bool rebuild) {
+  rebuild_kxq_curmin_ = rebuild;
+}
+
+template<typename A>
+bool HllArray<A>::isRebuildKxqCurminFlag() const {
+  return rebuild_kxq_curmin_;
+}
+
+template<typename A>
+void HllArray<A>::check_rebuild_kxq_cur_min() {
+  if (!rebuild_kxq_curmin_) { return; }
+
+  uint8_t cur_min = 64;
+  uint32_t num_at_cur_min = 0;
+  double kxq0 = 1 << this->lgConfigK_;
+  double kxq1 = 0;
+
+  auto it = this->begin(true); // want all points to adjust cur_min
+  const auto end = this->end();
+  while (it != end) {
+    uint8_t v = HllUtil<A>::getValue(*it);
+    if (v > 0) {
+      if (v < 32) { kxq0 += INVERSE_POWERS_OF_2[v] - 1.0; }
+      else        { kxq1 += INVERSE_POWERS_OF_2[v] - 1.0; }
+    }
+    if (v > cur_min) { ++it; continue; }
+    if (v < cur_min) {
+      cur_min = v;
+      num_at_cur_min = 1;
+    } else {
+      ++num_at_cur_min;
+    }    
+    ++it;
+  }
+
+  kxq0_ = kxq0;
+  kxq1_ = kxq1;
+  curMin_ = cur_min;
+  numAtCurMin_ = num_at_cur_min;
+  rebuild_kxq_curmin_ = false;
+  // HipAccum is not affected
+
+}
+
+template<typename A>
 typename HllArray<A>::const_iterator HllArray<A>::begin(bool all) const {
   return const_iterator(hllByteArr_.data(), 1 << this->lgConfigK_, 0, this->tgtHllType_, nullptr, 0, all);
 }
@@ -691,12 +722,14 @@ bool HllArray<A>::const_iterator::operator!=(const const_iterator& other) const 
 }
 
 template<typename A>
-uint32_t HllArray<A>::const_iterator::operator*() const {
+auto HllArray<A>::const_iterator::operator*() const -> reference {
   return HllUtil<A>::pair(index_, value_);
 }
 
 template<typename A>
 uint8_t HllArray<A>::const_iterator::get_value(const uint8_t* array, uint32_t index, target_hll_type hll_type, const AuxHashMap<A>* exceptions, uint8_t offset) {
+  // TODO: we should be able to improve efficiency here by reading multiple bytes at a time
+  //       for HLL4 and HLL6
   if (hll_type == target_hll_type::HLL_4) {
     uint8_t value = array[index >> 1];
     if ((index & 1) > 0) { // odd

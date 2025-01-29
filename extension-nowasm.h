@@ -24,12 +24,12 @@ extern "C"
     size_t len;
   } extension_list_u8_t;
   void extension_list_u8_free(extension_list_u8_t *ptr);
-  double extension_sketch_estimate(extension_list_u8_t *data);
-  extension_state_t extension_sketch_agg_init_handle(void);
-  extension_state_t extension_sketch_agg_update_handle(extension_state_t state, extension_list_u8_t *input);
-  extension_state_t extension_sketch_agg_merge_handle(extension_state_t left, extension_state_t right);
-  void extension_sketch_agg_serialize_handle(extension_state_t state, extension_list_u8_t *ret0);
-  extension_state_t extension_sketch_agg_deserialize_handle(extension_list_u8_t *data);
+  double extension_sketch_get_estimate(extension_list_u8_t *data);
+  extension_state_t extension_sketch_handle_init(void);
+  extension_state_t extension_sketch_handle_union_accum(extension_state_t state, extension_list_u8_t *input);
+  extension_state_t extension_sketch_handle_merge(extension_state_t left, extension_state_t right);
+  void extension_sketch_handle_serialize(extension_state_t state, extension_list_u8_t *ret0);
+  extension_state_t extension_sketch_handle_deserialize(extension_list_u8_t *data);
 
   typedef struct {
     char *ptr;

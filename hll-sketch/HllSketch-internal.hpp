@@ -98,14 +98,14 @@ hll_sketch_alloc<A>::hll_sketch_alloc(HllSketchImpl<A>* that) :
 {}
 
 template<typename A>
-hll_sketch_alloc<A> hll_sketch_alloc<A>::operator=(const hll_sketch_alloc<A>& other) {
+hll_sketch_alloc<A>& hll_sketch_alloc<A>::operator=(const hll_sketch_alloc<A>& other) {
   sketch_impl->get_deleter()(sketch_impl);
   sketch_impl = other.sketch_impl->copy();
   return *this;
 }
 
 template<typename A>
-hll_sketch_alloc<A> hll_sketch_alloc<A>::operator=(hll_sketch_alloc<A>&& other) {
+hll_sketch_alloc<A>& hll_sketch_alloc<A>::operator=(hll_sketch_alloc<A>&& other) {
   std::swap(sketch_impl, other.sketch_impl);
   return *this;
 }
@@ -241,25 +241,26 @@ void hll_sketch_alloc<A>::serialize_updatable(std::ostream& os) const {
 }
 
 template<typename A>
-vector_u8<A> hll_sketch_alloc<A>::serialize_compact(unsigned header_size_bytes) const {
+auto hll_sketch_alloc<A>::serialize_compact(unsigned header_size_bytes) const -> vector_bytes {
   return sketch_impl->serialize(true, header_size_bytes);
 }
 
 template<typename A>
-vector_u8<A> hll_sketch_alloc<A>::serialize_updatable() const {
+auto hll_sketch_alloc<A>::serialize_updatable() const -> vector_bytes {
   return sketch_impl->serialize(false, 0);
 }
-
 
 template<typename A>
 string<A> hll_sketch_alloc<A>::to_string(const bool summary,
                                          const bool detail,
                                          const bool aux_detail,
                                          const bool all) const {
-  std::basic_ostringstream<char, std::char_traits<char>, AllocChar<A>> os;
+  // Using a temporary stream for implementation here does not comply with AllocatorAwareContainer requirements.
+  // The stream does not support passing an allocator instance, and alternatives are complicated.
+  std::stringstream os;
   if (summary) {
     os << "### HLL sketch summary:" << std::endl
-       << "  Log Config K   : " << get_lg_config_k() << std::endl
+       << "  Log Config K   : " << std::to_string(get_lg_config_k()) << std::endl
        << "  Hll Target     : " << type_as_string() << std::endl
        << "  Current Mode   : " << mode_as_string() << std::endl
        << "  LB             : " << get_lower_bound(1) << std::endl
@@ -268,7 +269,7 @@ string<A> hll_sketch_alloc<A>::to_string(const bool summary,
        << "  OutOfOrder flag: " << (is_out_of_order_flag() ? "true" : "false") << std::endl;
     if (get_current_mode() == HLL) {
       HllArray<A>* hllArray = (HllArray<A>*) sketch_impl;
-      os << "  CurMin         : " << hllArray->getCurMin() << std::endl
+      os << "  CurMin         : " << std::to_string(hllArray->getCurMin()) << std::endl
          << "  NumAtCurMin    : " << hllArray->getNumAtCurMin() << std::endl
          << "  HipAccum       : " << hllArray->getHipAccum() << std::endl
          << "  KxQ0           : " << hllArray->getKxQ0() << std::endl
@@ -348,7 +349,7 @@ string<A> hll_sketch_alloc<A>::to_string(const bool summary,
     }
   }
 
-  return os.str();
+  return string<A>(os.str().c_str(), sketch_impl->getAllocator());
 }
 
 template<typename A>

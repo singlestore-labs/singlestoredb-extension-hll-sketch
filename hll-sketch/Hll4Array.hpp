@@ -26,13 +26,11 @@
 namespace datasketches {
 
 template<typename A>
-class Hll4Iterator;
-
-template<typename A>
 class Hll4Array final : public HllArray<A> {
   public:
     explicit Hll4Array(uint8_t lgConfigK, bool startFullSize, const A& allocator);
     explicit Hll4Array(const Hll4Array<A>& that);
+    explicit Hll4Array(const HllArray<A>& that);
 
     virtual ~Hll4Array();
     virtual std::function<void(HllSketchImpl<A>*)> get_deleter() const;
@@ -41,13 +39,12 @@ class Hll4Array final : public HllArray<A> {
 
     inline uint8_t getSlot(uint32_t slotNo) const;
     inline void putSlot(uint32_t slotNo, uint8_t value);
-    inline uint8_t get_value(uint32_t index) const;
+    inline uint8_t adjustRawValue(uint32_t index, uint8_t value) const;
 
     virtual uint32_t getUpdatableSerializationBytes() const;
     virtual uint32_t getHllByteArrBytes() const;
 
     virtual HllSketchImpl<A>* couponUpdate(uint32_t coupon) final;
-    void mergeHll(const HllArray<A>& src);
 
     virtual AuxHashMap<A>* getAuxHashMap() const;
     // does *not* delete old map if overwriting

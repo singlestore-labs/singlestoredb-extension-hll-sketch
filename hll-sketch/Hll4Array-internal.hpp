@@ -52,6 +52,22 @@ Hll4Array<A>::Hll4Array(const Hll4Array<A>& that) :
 }
 
 template<typename A>
+Hll4Array<A>::Hll4Array(const HllArray<A>& other) :
+  HllArray<A>(other.getLgConfigK(), target_hll_type::HLL_4, other.isStartFullSize(), other.getAllocator()),
+  auxHashMap_(nullptr)
+{
+  const int numBytes = this->hll4ArrBytes(this->lgConfigK_);
+  this->hllByteArr_.resize(numBytes, 0);
+  this->oooFlag_ = other.isOutOfOrderFlag();
+
+  for (const auto coupon : other) { // all = false, so skip empty values
+    internalCouponUpdate(coupon); // updates KxQ registers
+  }
+  this->hipAccum_ = other.getHipAccum();
+  this->rebuild_kxq_curmin_ = false;
+}
+
+template<typename A>
 Hll4Array<A>::~Hll4Array() {
   // hllByteArr deleted in parent
   if (auxHashMap_ != nullptr) {
@@ -114,10 +130,9 @@ uint8_t Hll4Array<A>::getSlot(uint32_t slotNo) const {
 }
 
 template<typename A>
-uint8_t Hll4Array<A>::get_value(uint32_t index) const {
-  const uint8_t value = getSlot(index);
+uint8_t Hll4Array<A>::adjustRawValue(uint32_t slot, uint8_t value) const {
   if (value != hll_constants::AUX_TOKEN) return value + this->curMin_;
-  return auxHashMap_->mustFindValueFor(index);
+  return auxHashMap_->mustFindValueFor(slot);
 }
 
 template<typename A>
@@ -210,7 +225,7 @@ void Hll4Array<A>::internalHll4Update(uint32_t slotNo, uint8_t newVal) {
 
       // we just increased a pair value, so it might be time to change curMin
       if (actualOldValue == this->curMin_) { // 908
-        this->decNumAtCurMin();
+        --(this->numAtCurMin_);
         while (this->numAtCurMin_ == 0) {
           shiftToBiggerCurMin(); // increases curMin by 1, builds a new aux table
           // shifts values in 4-bit table and recounts curMin
@@ -267,10 +282,10 @@ void Hll4Array<A>::shiftToBiggerCurMin() {
     for (const auto coupon: *auxHashMap_) {
       slotNum = HllUtil<A>::getLow26(coupon) & configKmask;
       oldActualVal = HllUtil<A>::getValue(coupon);
-      newShiftedVal = oldActualVal - newCurMin;
-      if (newShiftedVal < 0) {
+      if (oldActualVal < newCurMin) {
         THROW_LOGIC_ERR("oldActualVal < newCurMin when incrementing curMin");
       }
+      newShiftedVal = oldActualVal - newCurMin;
 
       if (getSlot(slotNum) != hll_constants::AUX_TOKEN) {
         THROW_LOGIC_ERR("getSlot(slotNum) != AUX_TOKEN for item in auxiliary hash map");
@@ -326,13 +341,6 @@ template<typename A>
 typename HllArray<A>::const_iterator Hll4Array<A>::end() const {
   return typename HllArray<A>::const_iterator(this->hllByteArr_.data(), 1 << this->lgConfigK_, 1 << this->lgConfigK_,
       this->tgtHllType_, auxHashMap_, this->curMin_, false);
-}
-
-template<typename A>
-void Hll4Array<A>::mergeHll(const HllArray<A>& src) {
-  for (const auto coupon: src) {
-    internalCouponUpdate(coupon);
-  }
 }
 
 }

@@ -31,6 +31,7 @@ template<typename A>
 class Hll8Array final : public HllArray<A> {
   public:
     Hll8Array(uint8_t lgConfigK, bool startFullSize, const A& allocator);
+    explicit Hll8Array(const HllArray<A>& that);
 
     virtual ~Hll8Array() = default;
     virtual std::function<void(HllSketchImpl<A>*)> get_deleter() const;
@@ -48,6 +49,7 @@ class Hll8Array final : public HllArray<A> {
 
   private:
     inline void internalCouponUpdate(uint32_t coupon);
+    inline void processValue(uint32_t slot, uint32_t mask, uint8_t new_val);
 };
 
 }

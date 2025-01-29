@@ -41,22 +41,14 @@ sketch-handle-init: func() -> state
 sketch-handle-build-accum: func(state: state, input: list<u8>) -> state
 sketch-handle-build-accum-emptyisnull: func(state: state, input: list<u8>) -> state
 
-// Updates the state with a pre-hashed value.  The value is added directly
-// to the state.
-sketch-handle-build-accum-by-hash: func(state: state, input: u64) -> state
-sketch-handle-build-accum-by-hash-emptyisnull: func(state: state, input: u64) -> state
-
 // Updates the state by creating a union of it with another sketch.
 sketch-handle-union-accum: func(state: state, input: list<u8>) -> state
 sketch-handle-union-accum-emptyisnull: func(state: state, input: list<u8>) -> state
 
 // Merge //////////////////////////////////////////////////////////////////////
 
-// Merges two sketch states by UNION.
-sketch-handle-union-merge: func(left: state, right: state) -> state
-
-// Merges two sketch states by INTERSECTION.
-sketch-handle-intersection-merge: func(left: state, right: state) -> state
+// Merges two sketch states.
+sketch-handle-merge: func(left: state, right: state) -> state
 
 // Serialization //////////////////////////////////////////////////////////////
 

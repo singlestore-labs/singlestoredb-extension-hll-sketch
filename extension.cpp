@@ -129,16 +129,6 @@ int32_t __wasm_export_extension_sketch_handle_build_accum_emptyisnull(int32_t ar
   extension_state_t ret = extension_sketch_handle_build_accum_emptyisnull(arg, &arg2);
   return ret;
 }
-__attribute__((export_name("sketch-handle-build-accum-by-hash")))
-int32_t __wasm_export_extension_sketch_handle_build_accum_by_hash(int32_t arg, int64_t arg0) {
-  extension_state_t ret = extension_sketch_handle_build_accum_by_hash(arg, (uint64_t) (arg0));
-  return ret;
-}
-__attribute__((export_name("sketch-handle-build-accum-by-hash-emptyisnull")))
-int32_t __wasm_export_extension_sketch_handle_build_accum_by_hash_emptyisnull(int32_t arg, int64_t arg0) {
-  extension_state_t ret = extension_sketch_handle_build_accum_by_hash_emptyisnull(arg, (uint64_t) (arg0));
-  return ret;
-}
 __attribute__((export_name("sketch-handle-union-accum")))
 int32_t __wasm_export_extension_sketch_handle_union_accum(int32_t arg, int32_t arg0, int32_t arg1) {
   extension_list_u8_t arg2 = (extension_list_u8_t) { (uint8_t*)(arg0), (size_t)(arg1) };
@@ -151,9 +141,9 @@ int32_t __wasm_export_extension_sketch_handle_union_accum_emptyisnull(int32_t ar
   extension_state_t ret = extension_sketch_handle_union_accum_emptyisnull(arg, &arg2);
   return ret;
 }
-__attribute__((export_name("sketch-handle-union-merge")))
-int32_t __wasm_export_extension_sketch_handle_union_merge(int32_t arg, int32_t arg0) {
-  extension_state_t ret = extension_sketch_handle_union_merge(arg, arg0);
+__attribute__((export_name("sketch-handle-merge")))
+int32_t __wasm_export_extension_sketch_handle_merge(int32_t arg, int32_t arg0) {
+  extension_state_t ret = extension_sketch_handle_merge(arg, arg0);
   return ret;
 }
 __attribute__((export_name("sketch-handle-serialize")))

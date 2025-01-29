@@ -1,11 +1,11 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 usage()
 {
     cat <<EOF
 Usage: $0 [OPTIONS]
 
-Generates Wasm-based UDAs and UDFs for Theta Sketches in SingleStoreDB.
+Generates Wasm-based UDAs and UDFs for HLL Sketches in SingleStoreDB.
 
 OPTIONS:
     --legacy-names   Use the legacy naming convention.
@@ -31,23 +31,20 @@ map-name()
     local MAPPED_NAME=""
 
     case "$BASE_NAME" in
-        theta_sketch_union_agg)
-            MAPPED_NAME="theta_sketch_agg"
+        hll_sketch_union_agg)
+            MAPPED_NAME="hll_add_agg"
             ;;
-        theta_sketch_union)
-            MAPPED_NAME="sketch_union"
+        hll_sketch_union_agg)
+            MAPPED_NAME="hll_union_agg"
             ;;
-        theta_sketch_intersection)
-            MAPPED_NAME="sketch_intersect"
+        hll_sketch_union)
+            MAPPED_NAME="hll_union"
             ;;
-        theta_sketch_a_not_b)
-            MAPPED_NAME="sketch_anotb"
+        hll_sketch_get_estimate)
+            MAPPED_NAME="hll_cardinality"
             ;;
-        theta_sketch_get_estimate)
-            MAPPED_NAME="sketch_estimate"
-            ;;
-        theta_sketch_to_string)
-            MAPPED_NAME="sketch_to_string"
+        hll_sketch_to_string)
+            MAPPED_NAME="hll_print"
             ;;
     esac
 
@@ -90,7 +87,7 @@ emit-aggregates()
 {
     local SUFFIX=$(get-function-suffix '_')
 
-    if TARGET_NAME=$(map-name theta_sketch_build_agg) ; then cat <<EOF
+    if TARGET_NAME=$(map-name hll_sketch_build_agg) ; then cat <<EOF
 CREATE OR REPLACE AGGREGATE $TARGET_NAME(LONGBLOB NOT NULL)
 RETURNS LONGBLOB NOT NULL
 WITH STATE HANDLE
@@ -98,29 +95,14 @@ AS WASM FROM BASE64 '$WASM_B64'
 WITH WIT FROM BASE64 '$WIT_B64'
 INITIALIZE WITH sketch_handle_init
 ITERATE WITH sketch_handle_build_accum${SUFFIX}
-MERGE WITH sketch_handle_union_merge
+MERGE WITH sketch_handle_merge
 TERMINATE WITH sketch_handle_serialize
 SERIALIZE WITH sketch_handle_serialize
 DESERIALIZE WITH sketch_handle_deserialize;
 EOF
     fi
 
-    if TARGET_NAME=$(map-name theta_sketch_build_by_hash_agg) ; then cat <<EOF
-CREATE OR REPLACE AGGREGATE $TARGET_NAME(BIGINT UNSIGNED NOT NULL)
-RETURNS LONGBLOB NOT NULL
-WITH STATE HANDLE
-AS WASM FROM BASE64 '$WASM_B64'
-WITH WIT FROM BASE64 '$WIT_B64'
-INITIALIZE WITH sketch_handle_init
-ITERATE WITH sketch_handle_build_accum_by_hash${SUFFIX}
-MERGE WITH sketch_handle_union_merge
-TERMINATE WITH sketch_handle_serialize
-SERIALIZE WITH sketch_handle_serialize
-DESERIALIZE WITH sketch_handle_deserialize;
-EOF
-    fi
-
-    if TARGET_NAME=$(map-name theta_sketch_union_agg) ; then cat <<EOF
+    if TARGET_NAME=$(map-name hll_sketch_union_agg) ; then cat <<EOF
 CREATE OR REPLACE AGGREGATE $TARGET_NAME(LONGBLOB NOT NULL)
 RETURNS LONGBLOB NOT NULL
 WITH STATE HANDLE
@@ -128,22 +110,7 @@ AS WASM FROM BASE64 '$WASM_B64'
 WITH WIT FROM BASE64 '$WIT_B64'
 INITIALIZE WITH sketch_handle_init
 ITERATE WITH sketch_handle_union_accum${SUFFIX}
-MERGE WITH sketch_handle_union_merge
-TERMINATE WITH sketch_handle_serialize
-SERIALIZE WITH sketch_handle_serialize
-DESERIALIZE WITH sketch_handle_deserialize;
-EOF
-    fi
-
-    if TARGET_NAME=$(map-name theta_sketch_intersection_agg) ; then cat <<EOF
-CREATE OR REPLACE AGGREGATE $TARGET_NAME(LONGBLOB NOT NULL)
-RETURNS LONGBLOB NOT NULL
-WITH STATE HANDLE
-AS WASM FROM BASE64 '$WASM_B64'
-WITH WIT FROM BASE64 '$WIT_B64'
-INITIALIZE WITH sketch_handle_init
-ITERATE WITH sketch_handle_intersection_accum${SUFFIX}
-MERGE WITH sketch_handle_intersection_merge
+MERGE WITH sketch_handle_merge
 TERMINATE WITH sketch_handle_serialize
 SERIALIZE WITH sketch_handle_serialize
 DESERIALIZE WITH sketch_handle_deserialize;
@@ -159,7 +126,7 @@ emit-scalars()
     VALUE_EXPORTS=($(cat ${EXTENSION_NAME}.wit | grep 'func(' | grep -v handle | grep -v emptyisnull | sed -E -e 's/([\w]*):.*/\1/g'))
 
     for I in `seq 1 ${#VALUE_NAMES[@]}` ; do
-        if TARGET_NAME=$(map-name theta_${VALUE_NAMES[$I-1]}) ; then cat <<EOF
+        if TARGET_NAME=$(map-name hll_${VALUE_NAMES[$I-1]}) ; then cat <<EOF
 CREATE OR REPLACE FUNCTION ${TARGET_NAME}
 AS WASM FROM BASE64 '$WASM_B64'
 WITH WIT FROM BASE64 '$WIT_B64'

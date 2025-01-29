@@ -31,12 +31,15 @@ class AuxHashMap;
 template<typename A>
 class HllArray : public HllSketchImpl<A> {
   public:
+    using vector_bytes = std::vector<uint8_t, typename std::allocator_traits<A>::template rebind_alloc<uint8_t>>;
+
     HllArray(uint8_t lgConfigK, target_hll_type tgtHllType, bool startFullSize, const A& allocator);
+    explicit HllArray(const HllArray& other, target_hll_type tgtHllType);
 
     static HllArray* newHll(const void* bytes, size_t len, const A& allocator);
     static HllArray* newHll(std::istream& is, const A& allocator);
 
-    virtual vector_u8<A> serialize(bool compact, unsigned header_size_bytes) const;
+    virtual vector_bytes serialize(bool compact, unsigned header_size_bytes) const;
     virtual void serialize(std::ostream& os, bool compact) const;
     virtual bool serialize2(bool compact, unsigned char** outBytes, size_t* outSize) const;
 
@@ -52,10 +55,6 @@ class HllArray : public HllSketchImpl<A> {
     virtual double getCompositeEstimate() const;
     virtual double getLowerBound(uint8_t numStdDev) const;
     virtual double getUpperBound(uint8_t numStdDev) const;
-
-    inline void addToHipAccum(double delta);
-
-    inline void decNumAtCurMin();
 
     inline uint8_t getCurMin() const;
     inline uint32_t getNumAtCurMin() const;
@@ -91,11 +90,17 @@ class HllArray : public HllSketchImpl<A> {
 
     virtual AuxHashMap<A>* getAuxHashMap() const;
 
+    void setRebuildKxqCurminFlag(bool rebuild);
+    bool isRebuildKxqCurminFlag() const;
+    void check_rebuild_kxq_cur_min();
+
     class const_iterator;
     virtual const_iterator begin(bool all = false) const;
     virtual const_iterator end() const;
 
     virtual A getAllocator() const;
+
+    const vector_bytes& getHllArray() const;
 
   protected:
     void hipAndKxQIncrementalUpdate(uint8_t oldValue, uint8_t newValue);
@@ -105,21 +110,28 @@ class HllArray : public HllSketchImpl<A> {
     double hipAccum_;
     double kxq0_;
     double kxq1_;
-    vector_u8<A> hllByteArr_; //init by sub-classes
+    vector_bytes hllByteArr_; //init by sub-classes
     uint8_t curMin_; //always zero for Hll6 and Hll8, only tracked by Hll4Array
     uint32_t numAtCurMin_; //interpreted as num zeros when curMin == 0
     bool oooFlag_; //Out-Of-Order Flag
+    bool rebuild_kxq_curmin_; // flag to recompute
 
     friend class HllSketchImplFactory<A>;
 };
 
 template<typename A>
-class HllArray<A>::const_iterator: public std::iterator<std::input_iterator_tag, uint32_t> {
+class HllArray<A>::const_iterator {
 public:
+  using iterator_category = std::input_iterator_tag;
+  using value_type = uint32_t;
+  using difference_type = void;
+  using pointer = uint32_t*;
+  using reference = uint32_t;
+
   const_iterator(const uint8_t* array, uint32_t array_slze, uint32_t index, target_hll_type hll_type, const AuxHashMap<A>* exceptions, uint8_t offset, bool all);
   const_iterator& operator++();
   bool operator!=(const const_iterator& other) const;
-  uint32_t operator*() const;
+  reference operator*() const;
 private:
   const uint8_t* array_;
   uint32_t array_size_;

@@ -17,12 +17,10 @@ using namespace datasketches;
 #define BAIL(...) { fprintf(stderr, __VA_ARGS__); abort(); }
 #define BAIL_IF(cond_, ...) { if (cond_) { BAIL(__VA_ARGS__); } }
 
-using s2_hll_sketch = hll_sketch_alloc;
-using s2_update_hll_sketch = update_hll_sketch;
-using s2_hll_union = hll_union_alloc;
+using s2_hll_sketch = hll_sketch;
+using s2_hll_union = hll_union;
 
 #define hll_sketch                 s2_hll_sketch
-#define update_hll_sketch          s2_update_hll_sketch
 #define hll_union                  s2_hll_union
 
 const int DEFAULT_LG_K = 12;
@@ -56,11 +54,6 @@ static void hll_union_delete(void* unionptr)
 static void hll_sketch_update(void* sketchptr, const void* data, unsigned length)
 {
     static_cast<hll_sketch*>(sketchptr)->update(data, length);
-}
-
-static void hll_sketch_update_by_hash(void* sketchptr, const uint64_t hash)
-{
-    static_cast<hll_sketch*>(sketchptr)->update_by_hash(hash);
 }
 
 static void hll_data_set_type(void* dataptr, agg_state_type t)
@@ -100,14 +93,14 @@ static void hll_union_update_with_sketch(void* unionptr, const void* sketchptr)
 
 static void hll_union_update_with_bytes(void* unionptr, extension_list_u8_t* bytes)
 {
-    static_cast<hll_union*>(unionptr)->update(unionptr, bytes->ptr, bytes->len);
+    static_cast<hll_union*>(unionptr)->update(bytes->ptr, bytes->len);
 }
 
 static void hll_sketch_serialize(const void* sketchptr, extension_list_u8_t* output)
 {
     unsigned char* bytes;
     size_t size;
-    auto s = static_cast<const compact_hll_sketch*>(sketchptr);
+    auto s = static_cast<const hll_sketch*>(sketchptr);
     if (!s->serialize2(true /*compact*/, &bytes, &size))
     {
         BAIL("Failed to serialize hll sketch");
@@ -153,7 +146,7 @@ extension_sketch_handle_build_accum(
     void* state = TO_PTR(handle);
     if (!VALID_HANDLE(handle))
     {
-        state = hll_sketch_new();
+        state = hll_sketch_new_default();
         hll_data_set_type(state, SKETCH);
     }
     hll_sketch_update(state, input->ptr, input->len);
@@ -174,33 +167,6 @@ extension_sketch_handle_build_accum_emptyisnull(
         input = nullptr;
     }
     return extension_sketch_handle_build_accum(handle, input);
-}
-
-extension_state_t
-extension_sketch_handle_build_accum_by_hash(
-    extension_state_t handle,
-    uint64_t input)
-{
-    void* state = TO_PTR(handle);
-    if (!VALID_HANDLE(handle))
-    {
-        state = hll_sketch_new_default();
-        hll_data_set_type(state, MUTABLE_SKETCH);
-    }
-    hll_sketch_update_by_hash(state, input);
-    return TO_HND(state);
-}
-
-extension_state_t
-extension_sketch_handle_build_accum_by_hash_emptyisnull(
-    extension_state_t handle,
-    uint64_t input)
-{
-    if (!input)
-    {
-        return handle;
-    }
-    return extension_sketch_handle_build_accum_by_hash(handle, input);
 }
 
 extension_state_t
@@ -249,8 +215,8 @@ extension_sketch_handle_merge(
         return NO_HANDLE;
     }
 
-    void* u = hll_sketch_new_default();
-    hll_data_set_type(u, SKETCH);
+    void* u = hll_union_new_default();
+    hll_data_set_type(u, UNION);
     if (VALID_HANDLE(left))
     {
         auto lptr = hll_data_get_result(TO_PTR(left));
@@ -279,7 +245,8 @@ extension_sketch_handle_serialize(
         return;
     }
     auto state = TO_PTR(handle);
-    hll_sketch_serialize(hll_data_get_result(state), output);
+    state = hll_data_get_result(state);
+    hll_sketch_serialize(state, output);
     hll_sketch_delete(state);
 }
 

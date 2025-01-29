@@ -23,47 +23,24 @@
 #include "common_defs.hpp"
 #include "HllUtil.hpp"
 #include "hll_data.hpp"
+#include "exception.hpp"
 
-#include <memory>
 #include <iostream>
+#include <memory>
+#include <string>
 #include <vector>
 
 namespace datasketches {
 
-  /**
- * This is a high performance implementation of Phillipe Flajolet&#8217;s HLL sketch but with
- * significantly improved error behavior.  If the ONLY use case for sketching is counting
- * uniques and merging, the HLL sketch is a reasonable choice, although the highest performing in terms of accuracy for
- * storage space consumed is CPC (Compressed Probabilistic Counting). For large enough counts, this HLL version (with HLL_4) can be 2 to
- * 16 times smaller than the Theta sketch family for the same accuracy.
- *
- * <p>This implementation offers three different types of HLL sketch, each with different
- * trade-offs with accuracy, space and performance. These types are specified with the
- * {@link TgtHllType} parameter.
- *
- * <p>In terms of accuracy, all three types, for the same <i>lg_config_k</i>, have the same error
- * distribution as a function of <i>n</i>, the number of unique values fed to the sketch.
- * The configuration parameter <i>lg_config_k</i> is the log-base-2 of <i>K</i>,
- * where <i>K</i> is the number of buckets or slots for the sketch.
- *
- * <p>During warmup, when the sketch has only received a small number of unique items
- * (up to about 10% of <i>K</i>), this implementation leverages a new class of estimator
- * algorithms with significantly better accuracy.
- *
- * <p>This sketch also offers the capability of operating off-heap. Given a WritableMemory object
- * created by the user, the sketch will perform all of its updates and internal phase transitions
- * in that object, which can actually reside either on-heap or off-heap based on how it is
- * configured. In large systems that must update and merge many millions of sketches, having the
- * sketch operate off-heap avoids the serialization and deserialization costs of moving sketches
- * to and from off-heap memory-mapped files, for example, and eliminates big garbage collection
- * delays.
- *
- * author Jon Malkin
- * author Lee Rhodes
- * author Kevin Lang
- */
+// forward declarations
+template<typename A> class hll_sketch_alloc;
+template<typename A> class hll_union_alloc;
 
-  
+/// HLL sketch alias with default allocator
+using hll_sketch = hll_sketch_alloc<std::allocator<uint8_t>>;
+/// HLL union alias with default allocator
+using hll_union = hll_union_alloc<std::allocator<uint8_t>>;
+
 /**
  * Specifies the target type of HLL sketch to be created. It is a target in that the actual
  * allocation of the HLL array is deferred until sufficient number of items have been received by
@@ -100,14 +77,41 @@ enum target_hll_type {
     HLL_8  ///< 8 bits per entry (fastest, fixed size)
 };
 
-template<typename A>
-class HllSketchImpl;
+/**
+ * This is a high performance implementation of Phillipe Flajolet's HLL sketch but with
+ * significantly improved error behavior.  If the ONLY use case for sketching is counting
+ * uniques and merging, the HLL sketch is a reasonable choice, although the highest performing in terms of accuracy for
+ * storage space consumed is CPC (Compressed Probabilistic Counting). For large enough counts, this HLL version (with HLL_4) can be 2 to
+ * 16 times smaller than the Theta sketch family for the same accuracy.
+ *
+ * <p>This implementation offers three different types of HLL sketch, each with different
+ * trade-offs with accuracy, space and performance. These types are specified with the
+ * {@link target_hll_type} parameter.
+ *
+ * <p>In terms of accuracy, all three types, for the same <i>lg_config_k</i>, have the same error
+ * distribution as a function of <i>n</i>, the number of unique values fed to the sketch.
+ * The configuration parameter <i>lg_config_k</i> is the log-base-2 of <i>K</i>,
+ * where <i>K</i> is the number of buckets or slots for the sketch.
+ *
+ * <p>During warmup, when the sketch has only received a small number of unique items
+ * (up to about 10% of <i>K</i>), this implementation leverages a new class of estimator
+ * algorithms with significantly better accuracy.
+ *
+ * <p>This sketch also offers the capability of operating off-heap. Given a WritableMemory object
+ * created by the user, the sketch will perform all of its updates and internal phase transitions
+ * in that object, which can actually reside either on-heap or off-heap based on how it is
+ * configured. In large systems that must update and merge many millions of sketches, having the
+ * sketch operate off-heap avoids the serialization and deserialization costs of moving sketches
+ * to and from off-heap memory-mapped files, for example, and eliminates big garbage collection
+ * delays.
+ *
+ * author Jon Malkin
+ * author Lee Rhodes
+ * author Kevin Lang
+ */
 
-template<typename A>
-class hll_union_alloc;
-
-template<typename A> using AllocU8 = typename std::allocator_traits<A>::template rebind_alloc<uint8_t>;
-template<typename A> using vector_u8 = std::vector<uint8_t, AllocU8<A>>;
+// forward declaration
+template<typename A> class HllSketchImpl;
 
 template<typename A = std::allocator<uint8_t> >
 class hll_sketch_alloc : public hll_data {
@@ -119,45 +123,60 @@ class hll_sketch_alloc : public hll_data {
      * @param start_full_size Indicates whether to start in HLL mode,
      *        keeping memory use constant (if HLL_6 or HLL_8) at the cost of
      *        starting out using much more memory
+     * @param allocator instance of an Allocator
      */
     explicit hll_sketch_alloc(uint8_t lg_config_k, target_hll_type tgt_type = HLL_4, bool start_full_size = false, const A& allocator = A());
 
     /**
      * Copy constructor
+     * @param that sketch to be copied
      */
     hll_sketch_alloc(const hll_sketch_alloc<A>& that);
 
     /**
      * Copy constructor to a new target type
+     * @param that sketch to be copied
+     * @param tgt_type target_hll_type
      */
     hll_sketch_alloc(const hll_sketch_alloc<A>& that, target_hll_type tgt_type);
 
     /**
      * Move constructor
+     * @param that sketch to be moved
      */
     hll_sketch_alloc(hll_sketch_alloc<A>&& that) noexcept;
 
     /**
      * Reconstructs a sketch from a serialized image on a stream.
      * @param is An input stream with a binary image of a sketch
+     * @param allocator instance of an Allocator
      */
     static hll_sketch_alloc deserialize(std::istream& is, const A& allocator = A());
 
     /**
      * Reconstructs a sketch from a serialized image in a byte array.
-     * @param is bytes An input array with a binary image of a sketch
+     * @param bytes An input array with a binary image of a sketch
      * @param len Length of the input array, in bytes
+     * @param allocator instance of an Allocator
      */
     static hll_sketch_alloc deserialize(const void* bytes, size_t len, const A& allocator = A());
 
     //! Class destructor
     virtual ~hll_sketch_alloc();
 
-    //! Copy assignment operator
-    hll_sketch_alloc operator=(const hll_sketch_alloc<A>& other);
+    /**
+     *  Copy assignment operator
+     *  @param other sketch to be copied
+     *  @return reference to this sketch
+     */
+    hll_sketch_alloc& operator=(const hll_sketch_alloc<A>& other);
 
-    //! Move assignment operator
-    hll_sketch_alloc operator=(hll_sketch_alloc<A>&& other);
+    /**
+     * Move assignment operator
+     * @param other sketch to be moved
+     * @return reference to this sketch
+     */
+    hll_sketch_alloc& operator=(hll_sketch_alloc<A>&& other);
 
     /**
      * Resets the sketch to an empty state in coupon collection mode.
@@ -165,18 +184,24 @@ class hll_sketch_alloc : public hll_data {
      */
     void reset();
 
-    typedef vector_u8<A> vector_bytes; // alias for users
+    // This is a convenience alias for users
+    // The type returned by the following serialize method
+    using vector_bytes = std::vector<uint8_t, typename std::allocator_traits<A>::template rebind_alloc<uint8_t>>;
 
     /**
      * Serializes the sketch to a byte array, compacting data structures
      * where feasible to eliminate unused storage in the serialized image.
      * @param header_size_bytes Allows for PostgreSQL integration
+     * @return serialized sketch in binary form
      */
     vector_bytes serialize_compact(unsigned header_size_bytes = 0) const;
+
+    bool serialize2(bool compact, unsigned char** outBytes, size_t* outSize) const;
 
     /**
      * Serializes the sketch to a byte array, retaining all internal 
      * data structures in their current form.
+     * @return serialized sketch in binary form
      */
     vector_bytes serialize_updatable() const;
 
@@ -198,7 +223,7 @@ class hll_sketch_alloc : public hll_data {
      * Human readable summary with optional detail
      * @param summary if true, output the sketch summary
      * @param detail if true, output the internal data array
-     * @param auxDetail if true, output the internal Aux array, if it exists.
+     * @param aux_detail if true, output the internal Aux array, if it exists.
      * @param all if true, outputs all entries including empty ones
      * @return human readable string with optional detail.
      */
@@ -359,7 +384,7 @@ class hll_sketch_alloc : public hll_data {
      * value can be exceeded in extremely rare cases.  If exceeded, it
      * will be larger by only a few percent.
      *
-     * @param lg_config_k The Log2 of K for the target HLL sketch. This value must be
+     * @param lg_k The Log2 of K for the target HLL sketch. This value must be
      *        between 4 and 21 inclusively.
      * @param tgt_type the desired Hll type
      * @return the maximum size in bytes that this sketch can grow to.
@@ -392,8 +417,6 @@ class hll_sketch_alloc : public hll_data {
     bool is_out_of_order_flag() const;
     bool is_estimation_mode() const;
 
-    typedef typename std::allocator_traits<A>::template rebind_alloc<hll_sketch_alloc> AllocHllSketch;
-
     HllSketchImpl<A>* sketch_impl;
     friend hll_union_alloc<A>;
 };
@@ -413,8 +436,8 @@ class hll_sketch_alloc : public hll_data {
  * <p>Although the API for this union operator parallels many of the methods of the
  * <i>HllSketch</i>, the behavior of the union operator has some fundamental differences.
  *
- * <p>First, the user cannot specify the #tgt_hll_type as an input parameter.
- * Instead, it is specified for the sketch returned with #get_result(tgt_hll_tyope).
+ * <p>First, the user cannot specify the #target_hll_type as an input parameter.
+ * Instead, it is specified for the sketch returned with #get_result.
  *
  * <p>Second, the internal effective value of log-base-2 of <i>k</i> for the union operation can
  * change dynamically based on the smallest <i>lg_config_k</i> that the union operation has seen.
@@ -423,7 +446,6 @@ class hll_sketch_alloc : public hll_data {
  * author Lee Rhodes
  * author Kevin Lang
  */
- 
 template<typename A = std::allocator<uint8_t> >
 class hll_union_alloc : public hll_data {
   public:
@@ -431,6 +453,7 @@ class hll_union_alloc : public hll_data {
      * Construct an hll_union operator with the given maximum log2 of k.
      * @param lg_max_k The maximum size, in log2, of k. The value must
      * be between 7 and 21, inclusive.
+     * @param allocator instance of an Allocator
      */
     explicit hll_union_alloc(uint8_t lg_max_k, const A& allocator = A());
 
@@ -495,21 +518,21 @@ class hll_union_alloc : public hll_data {
 
     /**
      * Returns the result of this union operator with the specified
-     * #tgt_hll_type.
-     * @param The tgt_hll_type enum value of the desired result (Default: HLL_4)
+     * #target_hll_type.
+     * @param tgt_type The tgt_hll_type enum value of the desired result (Default: HLL_4)
      * @return The result of this union with the specified tgt_hll_type
      */
     hll_sketch_alloc<A> get_result(target_hll_type tgt_type = HLL_4) const;
 
     /**
      * Update this union operator with the given sketch.
-     * @param The given sketch.
+     * @param sketch The given sketch.
      */
     void update(const hll_sketch_alloc<A>& sketch);
 
     /**
      * Update this union operator with the given temporary sketch.
-     * @param The given sketch.
+     * @param sketch The given sketch.
      */
     void update(hll_sketch_alloc<A>&& sketch);
   
@@ -609,7 +632,7 @@ class hll_union_alloc : public hll_data {
     * perform the union. This may involve swapping, down-sampling, transforming, and / or
     * copying one of the arguments and may completely replace the internals of the union.
     *
-    * @param incoming_impl the given incoming sketch, which may not be modified.
+    * @param sketch the given incoming sketch, which may not be modified.
     * @param lg_max_k the maximum value of log2 K for this union.
     */
     inline void union_impl(const hll_sketch_alloc<A>& sketch, uint8_t lg_max_k);
@@ -628,12 +651,6 @@ class hll_union_alloc : public hll_data {
     uint8_t lg_max_k_;
     hll_sketch_alloc<A> gadget_;
 };
-
-/// convenience alias for hll_sketch with default allocator
-typedef hll_sketch_alloc<> hll_sketch;
-
-/// convenience alias for hll_union with default allocator
-typedef hll_union_alloc<> hll_union;
 
 } // namespace datasketches
 

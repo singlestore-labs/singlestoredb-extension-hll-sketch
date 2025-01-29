@@ -25,6 +25,7 @@
 #include "count_zeros.hpp"
 #include "common_defs.hpp"
 #include "ceiling_power_of_2.hpp"
+#include "exception.hpp"
 
 #include <cmath>
 #include <stdexcept>
@@ -124,8 +125,6 @@ public:
   static uint32_t pair(uint32_t slotNo, uint8_t value);
   static uint32_t getLow26(uint32_t coupon);
   static uint8_t getValue(uint32_t coupon);
-  static double invPow2(uint8_t e);
-  static uint8_t ceilingPowerOf2(uint32_t n);
   static uint8_t simpleIntLog2(uint32_t n); // n must be power of 2
   static uint8_t computeLgArrInts(hll_mode mode, uint32_t count, uint8_t lgConfigK);
   static double getRelErr(bool upperBound, bool unioned, uint8_t lgConfigK, uint8_t numStdDev);
@@ -153,17 +152,25 @@ inline void HllUtil<A>::hash(const void* key, size_t keyLen, uint64_t seed, Hash
 }
 
 template<typename A>
-inline double HllUtil<A>::getRelErr(bool upperBound, bool unioned,
-                                    uint8_t lgConfigK, uint8_t numStdDev) {
-  return RelativeErrorTables<A>::getRelErr(upperBound, unioned, lgConfigK, numStdDev);
-}
-
-template<typename A>
 inline uint8_t HllUtil<A>::checkLgK(uint8_t lgK) {
   if ((lgK >= hll_constants::MIN_LOG_K) && (lgK <= hll_constants::MAX_LOG_K)) {
     return lgK;
   } else {
     THROW_INVALID_ARG("Invalid value of k: " + std::to_string(lgK));
+  }
+}
+
+template<typename A>
+inline double HllUtil<A>::getRelErr(bool upperBound, bool unioned,
+                                    uint8_t lgConfigK, uint8_t numStdDev) {
+  checkLgK(lgConfigK);
+  if (lgConfigK > 12) {
+    const double rseFactor = unioned ?
+        hll_constants::HLL_NON_HIP_RSE_FACTOR : hll_constants::HLL_HIP_RSE_FACTOR;
+    const uint32_t configK = 1 << lgConfigK;
+    return (upperBound ? -1 : 1) * (numStdDev * rseFactor) / sqrt(configK);
+  } else {
+    return RelativeErrorTables<A>::getRelErr(upperBound, unioned, lgConfigK, numStdDev);
   }
 }
 
@@ -194,16 +201,6 @@ inline uint32_t HllUtil<A>::getLow26(uint32_t coupon) {
 template<typename A>
 inline uint8_t HllUtil<A>::getValue(uint32_t coupon) {
   return coupon >> hll_constants::KEY_BITS_26;
-}
-
-template<typename A>
-inline double HllUtil<A>::invPow2(uint8_t e) {
-  union {
-    long long longVal;
-    double doubleVal;
-  } conv;
-  conv.longVal = (1023L - e) << 52;
-  return conv.doubleVal;
 }
 
 template<typename A>

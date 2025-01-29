@@ -33,11 +33,9 @@ extern "C"
   extension_state_t extension_sketch_handle_init(void);
   extension_state_t extension_sketch_handle_build_accum(extension_state_t state, extension_list_u8_t *input);
   extension_state_t extension_sketch_handle_build_accum_emptyisnull(extension_state_t state, extension_list_u8_t *input);
-  extension_state_t extension_sketch_handle_build_accum_by_hash(extension_state_t state, uint64_t input);
-  extension_state_t extension_sketch_handle_build_accum_by_hash_emptyisnull(extension_state_t state, uint64_t input);
   extension_state_t extension_sketch_handle_union_accum(extension_state_t state, extension_list_u8_t *input);
   extension_state_t extension_sketch_handle_union_accum_emptyisnull(extension_state_t state, extension_list_u8_t *input);
-  extension_state_t extension_sketch_handle_union_merge(extension_state_t left, extension_state_t right);
+  extension_state_t extension_sketch_handle_merge(extension_state_t left, extension_state_t right);
   void extension_sketch_handle_serialize(extension_state_t state, extension_list_u8_t *ret0);
   extension_state_t extension_sketch_handle_deserialize(extension_list_u8_t *data);
   #ifdef __cplusplus
