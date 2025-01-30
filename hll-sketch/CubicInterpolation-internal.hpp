@@ -36,8 +36,11 @@ static double cubicInterpolate(const double x0, const double y0, const double x1
 template<typename A>
 static int findStraddle(const double xArr[], const int len, const double x);
 
+// PAV (SingleStore): I had to add the volatile keyword here to workaround a 
+// bug in the version of Wasmtime that SingleStore embeds, manifesting as a
+// Rust runtime panic during module compilation.
 template<typename A>
-static int recursiveFindStraddle(const double xArr[], const int l, const int r, const double x);
+static int recursiveFindStraddle(const volatile double xArr[], const volatile int l, const volatile int r, const volatile double x);
 
 template<typename A>
 static double interpolateUsingXArrAndYStride(const double xArr[], const double yStride,
@@ -154,7 +157,7 @@ static int findStraddle(const double xArr[], const int len, const double x)
 
 /* the invariant here is that xArr[l] <= x && x < xArr[r] */
 template<typename A>
-static int recursiveFindStraddle(const double xArr[], const int l, const int r, const double x)
+static int recursiveFindStraddle(const volatile double xArr[], const volatile int l, const volatile int r, const volatile double x)
 {
   int m;
   if (l >= r) {

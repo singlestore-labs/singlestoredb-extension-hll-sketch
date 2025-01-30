@@ -86,16 +86,6 @@ static void* hll_data_get_result(void* dataptr)
     }
 }
 
-static void hll_union_update_with_sketch(void* unionptr, const void* sketchptr)
-{
-    static_cast<hll_union*>(unionptr)->update(*static_cast<const hll_sketch*>(sketchptr));
-}
-
-static void hll_union_update_with_bytes(void* unionptr, extension_list_u8_t* bytes)
-{
-    static_cast<hll_union*>(unionptr)->update(bytes->ptr, bytes->len);
-}
-
 static void hll_sketch_serialize(const void* sketchptr, extension_list_u8_t* output)
 {
     unsigned char* bytes;
@@ -112,6 +102,18 @@ static void hll_sketch_serialize(const void* sketchptr, extension_list_u8_t* out
 static void* hll_sketch_deserialize(extension_list_u8_t* bytes)
 {
     return new hll_sketch(hll_sketch::deserialize(bytes->ptr, bytes->len));
+}
+
+static void hll_union_update_with_sketch(void* unionptr, const void* sketchptr)
+{
+    static_cast<hll_union*>(unionptr)->update(*static_cast<const hll_sketch*>(sketchptr));
+}
+
+static void hll_union_update_with_bytes(void* unionptr, extension_list_u8_t* bytes)
+{
+    auto sketchptr = hll_sketch_deserialize(bytes);
+    hll_data_set_type(sketchptr, SKETCH);
+    hll_union_update_with_sketch(unionptr, sketchptr);
 }
 
 static double hll_sketch_get_estimate(const void* sketchptr)

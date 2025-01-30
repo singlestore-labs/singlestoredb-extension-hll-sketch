@@ -38,7 +38,7 @@ extension.wasm: extension.cpp
  		-Icommon \
  		-Ihll-sketch \
  		-o extension.wasm \
- 		extension.cpp extension_impl_handle_stubs.cpp # extension_impl_handle.cpp
+ 		extension.cpp extension_impl_handle.cpp
 
 extension.cpp: extension.wit
 	wit-bindgen c --export extension.wit
