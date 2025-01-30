@@ -31,11 +31,11 @@ map-name()
     local MAPPED_NAME=""
 
     case "$BASE_NAME" in
-        hll_sketch_union_agg)
-            MAPPED_NAME="hll_add_agg"
+        hll_sketch_build_agg)
+            MAPPED_NAME="hll_add_agg_compact"
             ;;
         hll_sketch_union_agg)
-            MAPPED_NAME="hll_union_agg"
+            MAPPED_NAME="hll_union_agg_compact"
             ;;
         hll_sketch_union)
             MAPPED_NAME="hll_union"

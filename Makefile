@@ -48,6 +48,8 @@ extension.cpp: extension.wit
 
 load_extension.sql: create_loader.sh
 	./create_loader.sh
+	./create_loader.sh --legacy-names
+	./create_loader.sh --empty-is-null
 	./create_loader.sh --legacy-names --empty-is-null
 
 .PHONY: driver
