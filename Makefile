@@ -65,7 +65,7 @@ driver:
 
 .PHONY: clean
 clean:
-	@rm -f extension.wasm load_extension*.sql driver
+	@rm -f extension.wasm load_extension*.sql unload_extension.sql driver
 
 .PHONY: distclean
 distclean: clean

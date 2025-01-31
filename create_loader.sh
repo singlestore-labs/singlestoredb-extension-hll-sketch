@@ -57,7 +57,7 @@ map-name()
     fi
 }
 
-get-outfile-name()
+get-loader-name()
 {
     local BASE_NAME="load_extension"
 
@@ -73,6 +73,11 @@ get-outfile-name()
     echo "$BASE_NAME"
 }
 
+get-unloader-name()
+{
+    echo "unload_extension.sql"
+}
+
 get-function-suffix()
 {
     local DELIM="$1"
@@ -83,7 +88,7 @@ get-function-suffix()
     echo "$SFX"
 }
 
-emit-aggregates()
+emit-load-aggregates()
 {
     local SUFFIX=$(get-function-suffix '_')
 
@@ -118,7 +123,7 @@ EOF
     fi
 }
 
-emit-scalars()
+emit-load-scalars()
 {
     local SUFFIX=$(get-function-suffix '-')
 
@@ -133,6 +138,25 @@ WITH WIT FROM BASE64 '$WIT_B64'
 USING EXPORT '${VALUE_EXPORTS[$I-1]}${SUFFIX}';
 EOF
         fi
+    done
+}
+
+emit-unload-aggregates()
+{
+        cat <<EOF
+DROP AGGREGATE IF EXISTS hll_sketch_build_agg;
+DROP AGGREGATE IF EXISTS hll_sketch_union_agg;
+EOF
+}
+
+emit-unload-scalars()
+{
+    VALUE_NAMES=($(cat ${EXTENSION_NAME}.wit | grep 'func(' | grep -v handle | grep -v emptyisnull | sed -E -e 's/([\w]*):.*/\1/g' | sed 's/-/_/g'))
+
+    for I in `seq 1 ${#VALUE_NAMES[@]}` ; do
+        cat <<EOF
+DROP FUNCTION IF EXISTS hll_${VALUE_NAMES[$I-1]};
+EOF
     done
 }
 
@@ -159,13 +183,18 @@ while [ $# -gt 0 ] ; do
     esac
 done
 
-OUTFILE=$(get-outfile-name)
-rm -f "$OUTFILE"
+LOADFILE=$(get-loader-name)
+UNLOADFILE=$(get-unloader-name)
+
+rm -f "$LOADFILE" "$UNLOADFILE"
 
 EXTENSION_NAME=$(find . -iname "*.wit" -exec basename {} .wit ';')
 WASM_B64=$(cat ${EXTENSION_NAME}.wasm | base64 -w 0)
 WIT_B64=$(cat ${EXTENSION_NAME}.wit | base64 -w 0)
 
-emit-aggregates >> "$OUTFILE"
-emit-scalars    >> "$OUTFILE"
+emit-load-aggregates >> "$LOADFILE"
+emit-load-scalars    >> "$LOADFILE"
+
+emit-unload-scalars    >> "$UNLOADFILE"
+emit-unload-aggregates >> "$UNLOADFILE"
 
