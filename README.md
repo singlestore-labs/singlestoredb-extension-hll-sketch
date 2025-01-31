@@ -64,7 +64,7 @@ mysql -u $DBUSER -h $DBHOST -P $DBPORT -D $DBNAME -p < load_extension.sql
 Since SingleStoreDB does not yet support passing `NULL`s to Wasm functions, we are providing two deployment options for handling them.  The first way treats empty strings as `NULL`s, with the side effect being that an HLL Sketch hash cannot be generated from an empty string.  The second way hashes empty strings normally, thereby disallowing the concept of a NULL value.  To use the first option, deploy one of the `load_extension...empty_is_null` scripts.  To use the second option, deploy one of the scripts without the `empty_is_null` tag.
 
 ### Usage
-The following is simple example that creates a table with two columns of integers.  It generates an HLL sketch for the `data` column and then computes its estimate.
+The following is simple example that creates a table with a column of strings.  It generates an HLL sketch for the `data` column and then computes its estimate.
 ```sql
 CREATE TABLE IF NOT EXISTS sketch_input(data BLOB);
 INSERT INTO sketch_input VALUES ("doing"), ("some"), ("hllsketch"), ("stuff");
