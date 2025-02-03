@@ -23,7 +23,7 @@ using s2_hll_union = hll_union;
 #define hll_sketch                 s2_hll_sketch
 #define hll_union                  s2_hll_union
 
-const int DEFAULT_LG_K = 12;
+const int DEFAULT_LG_K = 16;
 
 static void* hll_sketch_new_default()
 {
